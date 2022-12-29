@@ -1,9 +1,10 @@
-sema_nif
+erlsem
 =====
 
-An OTP library
+An OTP library implementing counting non-blocking semaphore.
 
 Build
 -----
 
     $ rebar3 compile
+    $ rebar3 eunit
