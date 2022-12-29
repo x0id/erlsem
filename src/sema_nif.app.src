@@ -1,0 +1,5 @@
+{application, sema_nif, [
+    {description, "atomic semaphore library"},
+    {vsn, git},
+    {applications, [kernel, stdlib]}
+]}.

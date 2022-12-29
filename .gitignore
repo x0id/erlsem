@@ -1,0 +1,4 @@
+*.swp
+_build
+priv
+c_src/sema_nif.o
