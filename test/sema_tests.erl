@@ -96,14 +96,14 @@ atomic_ops(N) ->
     exit(Pid, kill),
     1 == atomics:get(A, 1).
 
-sema_race_test_() ->
-    {timeout, 60, fun() ->
-        ?assertNotException(
-            throw,
-            {error, incomplete},
-            race_loop(4000, 1000000, fun sema_ops/1)
-        )
-    end}.
+sema_race_test_() -> {timeout, 60, fun test_sema_race/0}.
+
+test_sema_race() ->
+    ?assertNotException(
+        throw,
+        {error, incomplete},
+        race_loop(4000, 1000000, fun sema_ops/1)
+    ).
 
 sema_ops(N) ->
     S = sema_nif:create(2),
