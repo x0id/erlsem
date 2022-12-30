@@ -6,7 +6,7 @@ basic_api_test() ->
     ?assertError(badarg, sema_nif:create(-1)),
     S = sema_nif:create(3),
     Pid = self(),
-    ?assertEqual({ok, 1}, sema_nif:occupy(S, Pid)),
+    ?assertEqual({ok, 1}, sema_nif:occupy(S, Pid, true)),
     ?assertEqual({error, duplicate_pid}, sema_nif:occupy(S, Pid)),
     ?assertEqual({ok, 0}, sema_nif:vacate(S, Pid)),
     ?assertEqual({error, not_found}, sema_nif:vacate(S, Pid)),

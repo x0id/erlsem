@@ -1,8 +1,8 @@
 -module(sema_nif).
 
--export([create/1, occupy/2, vacate/2]).
+-export([create/1, occupy/2, occupy/3, vacate/2]).
 
--nifs([create/1, occupy/2, vacate/2]).
+-nifs([create/1, occupy/2, occupy/3, vacate/2]).
 
 -on_load(init/0).
 
@@ -12,6 +12,8 @@
 create(_) -> not_loaded(?LINE).
 
 occupy(_, _) -> not_loaded(?LINE).
+
+occupy(_, _, _) -> not_loaded(?LINE).
 
 vacate(_, _) -> not_loaded(?LINE).
 
