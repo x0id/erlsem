@@ -162,7 +162,7 @@ sema_ops_gc(N) ->
     Pid = spawn(fun() -> sema_nif:occupy(S, self(), true) end),
     spin(N),
     exit(Pid, kill),
-    wait_loop(S, 10, 15_000).
+    wait_loop(S, 10, 100_000).
 
 wait_loop(_, _, 0) ->
     % occupation was partally done, Pid was not registered!
