@@ -16,6 +16,9 @@ static ERL_NIF_TERM atom_true;
 static ERL_NIF_TERM atom_backlog_full;
 static ERL_NIF_TERM atom_duplicate_pid;
 static ERL_NIF_TERM atom_not_found;
+static ERL_NIF_TERM atom_dead;
+static ERL_NIF_TERM atom_cnt;
+static ERL_NIF_TERM atom_max;
 
 inline ERL_NIF_TERM mk_atom(ErlNifEnv *env, const char *name) {
     ERL_NIF_TERM ret;
@@ -69,6 +72,7 @@ struct enif_allocator : std::allocator<T> {
 
 struct sema {
     std::atomic_uint cnt;
+    std::atomic_uint dead_counter;
     unsigned max;
 
     std::map<
@@ -81,7 +85,20 @@ struct sema {
 
     static ErlNifMonitor null_mon;
 
-    sema(unsigned n) : cnt(0), max(n) {}
+    sema(unsigned n) : cnt(0), dead_counter(0), max(n) {}
+
+    ERL_NIF_TERM info(ErlNifEnv *env) {
+        ERL_NIF_TERM keys[] = {atom_dead, atom_cnt, atom_max};
+        ERL_NIF_TERM vals[] = {
+            enif_make_uint(env, dead_counter.load(std::memory_order_acquire)),
+            enif_make_uint(env, cnt.load(std::memory_order_acquire)),
+            enif_make_uint(env, max)
+        };
+        unsigned n = sizeof(vals) / sizeof(vals[0]);
+        ERL_NIF_TERM map_ret;
+        enif_make_map_from_arrays(env, keys, vals, n, &map_ret);
+        return map_ret;
+    }
 
     ERL_NIF_TERM try_to_take(ErlNifEnv *env, const ErlNifPid& pid, bool mon) {
         unsigned x;
@@ -149,6 +166,13 @@ struct sema {
 
     // unregister (garbage-collect) "dead" procees
     void gc_pid(const ErlNifPid& pid) {
+        // release resource unit
+        cnt.fetch_sub(1, std::memory_order_acquire);
+
+        // increment dead counter
+        dead_counter.fetch_add(1, std::memory_order_release);
+
+        // deregister pid by removing from the pids table
         const std::lock_guard<std::mutex> lock(pid_mutex);
         pids.erase(pid);
     }
@@ -165,7 +189,7 @@ struct sema {
     }
 };
 
-ErlNifMonitor sema::null_mon = {0};
+ErlNifMonitor sema::null_mon;
 
 static void free_sema(ErlNifEnv *env, void *obj) {
     if (obj != nullptr) {
@@ -203,6 +227,9 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
     atom_backlog_full = mk_atom(env, "backlog_full");
     atom_duplicate_pid = mk_atom(env, "duplicate_pid");
     atom_not_found = mk_atom(env, "not_found");
+    atom_dead = mk_atom(env, "dead");
+    atom_cnt = mk_atom(env, "cnt");
+    atom_max = mk_atom(env, "max");
     return 0;
 }
 
@@ -228,6 +255,21 @@ create(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ERL_NIF_TERM
+info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    if (argc != 1)
+        return enif_make_badarg(env);
+
+    sema *res = nullptr;
+    if (!enif_get_resource(env, argv[0], SEMA, (void **)&res))
+        return enif_make_badarg(env);
+
+    if (res == nullptr)
+        return enif_make_badarg(env);
+
+    return res->info(env);
+}
+
+static ERL_NIF_TERM
 occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc < 2 || argc > 3)
         return enif_make_badarg(env);
@@ -250,7 +292,7 @@ occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc == 3) {
         if (!enif_is_atom(env, argv[2]))
             return enif_make_badarg(env);
-        monitor = enif_compare(atom_true, argv[2]);
+        monitor = 0 == enif_compare(atom_true, argv[2]);
     }
 
     return res->try_to_take(env, pid, monitor);
@@ -280,6 +322,7 @@ vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
 static ErlNifFunc nif_funcs[] = {
     {"create", 1, create},
+    {"info", 1, info},
     {"occupy", 2, occupy},
     {"occupy", 3, occupy},
     {"vacate", 2, vacate}
