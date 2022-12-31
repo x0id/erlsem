@@ -99,7 +99,7 @@ struct sema {
                         return unsigned_result(env, x + 1);
                     } else {
                         // process already registered, roll back
-                        cnt.fetch_sub(1);
+                        cnt.fetch_sub(1, std::memory_order_acq_rel);
                         return error_tuple(env, atom_duplicate_pid);
                     }
                 } else {
@@ -156,7 +156,8 @@ struct sema {
     ERL_NIF_TERM vacate(ErlNifEnv *env, const ErlNifPid& pid) {
         if (del_pid(env, pid)) {
             // process removed from registry, decrement and return new count
-            return unsigned_result(env, cnt.fetch_sub(1) - 1);
+            return unsigned_result(env,
+                cnt.fetch_sub(1, std::memory_order_acq_rel) - 1);
         } else {
             // process not found in the registry
             return error_tuple(env, atom_not_found);
@@ -170,7 +171,7 @@ static void free_sema(ErlNifEnv *env, void *obj) {
     if (obj != nullptr) {
         sema& x = *(sema *)obj;
 #ifdef TRACE
-        auto n = x.cnt.load();
+        auto n = x.cnt.load(std::memory_order_acquire);
         std::cout << "free> cnt: " << n << ", max: " << x.max << "\r\n";
 #endif
         x.~sema();
