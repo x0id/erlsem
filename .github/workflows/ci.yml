@@ -16,5 +16,5 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: compile and test
+    - name: Compile and test
       run: rebar3 check
