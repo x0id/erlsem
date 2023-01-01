@@ -30,6 +30,12 @@ basic_api_test() ->
     ?assertEqual({ok, 0}, sema_nif:vacate(S, Pid)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
+    ?assertEqual({ok, 1}, sema_nif:occupy(S)),
+    ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 0}, sema_nif:vacate(S)),
+    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
+
     ok.
 
 parallel_test() ->
@@ -153,13 +159,13 @@ sema_ops(N) ->
 sema_gc_race_test_() -> {timeout, 60, fun test_sema_gc_race/0}.
 
 test_sema_gc_race() ->
-    race_loop(4000, 1000000, fun sema_ops_gc/1).
+    race_loop(4_000, 1_000_000, fun sema_ops_gc/1).
 
 % version with automatic dead processes collection
 sema_ops_gc(N) ->
     S = sema_nif:create(1),
     % acquire and monitor
-    Pid = spawn(fun() -> sema_nif:occupy(S, self(), true) end),
+    Pid = spawn(fun() -> sema_nif:occupy(S) end),
     spin(N),
     exit(Pid, kill),
     wait_loop(S, 10, 100_000).

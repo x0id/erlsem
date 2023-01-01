@@ -271,14 +271,7 @@ info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
 static ERL_NIF_TERM
 occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-    if (argc < 2 || argc > 3)
-        return enif_make_badarg(env);
-
-    ErlNifPid pid;
-    if (!enif_is_pid(env, argv[1]))
-        return enif_make_badarg(env);
-
-    if (!enif_get_local_pid(env, argv[1], &pid))
+    if (argc < 1 || argc > 3)
         return enif_make_badarg(env);
 
     sema *res = nullptr;
@@ -288,8 +281,21 @@ occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (res == nullptr)
         return enif_make_badarg(env);
 
+    ErlNifPid pid = {};
     bool monitor = false;
-    if (argc == 3) {
+
+    if (argc > 1) {
+        if (!enif_is_pid(env, argv[1]))
+            return enif_make_badarg(env);
+        if (!enif_get_local_pid(env, argv[1], &pid))
+            return enif_make_badarg(env);
+    } else {
+        if (nullptr == enif_self(env, &pid))
+            return enif_make_badarg(env);
+        monitor = true;
+    }
+
+    if (argc > 2) {
         if (!enif_is_atom(env, argv[2]))
             return enif_make_badarg(env);
         monitor = 0 == enif_compare(atom_true, argv[2]);
@@ -300,14 +306,7 @@ occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
 static ERL_NIF_TERM
 vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-    if (argc != 2)
-        return enif_make_badarg(env);
-
-    ErlNifPid pid;
-    if (!enif_is_pid(env, argv[1]))
-        return enif_make_badarg(env);
-
-    if (!enif_get_local_pid(env, argv[1], &pid))
+    if (argc < 1 || argc > 2)
         return enif_make_badarg(env);
 
     sema *res = nullptr;
@@ -317,14 +316,27 @@ vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (res == nullptr)
         return enif_make_badarg(env);
 
+    ErlNifPid pid = {};
+    if (argc > 1) {
+        if (!enif_is_pid(env, argv[1]))
+            return enif_make_badarg(env);
+        if (!enif_get_local_pid(env, argv[1], &pid))
+            return enif_make_badarg(env);
+    } else {
+        if (nullptr == enif_self(env, &pid))
+            return enif_make_badarg(env);
+    }
+
     return res->vacate(env, pid);
 }
 
 static ErlNifFunc nif_funcs[] = {
     {"create", 1, create},
     {"info", 1, info},
+    {"occupy", 1, occupy},
     {"occupy", 2, occupy},
     {"occupy", 3, occupy},
+    {"vacate", 1, vacate},
     {"vacate", 2, vacate}
 };
 
