@@ -8,26 +8,22 @@ basic_api_test() ->
     S = sema_nif:create(3),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    Pid = self(),
-    ?assertEqual({ok, 1}, sema_nif:occupy(S, Pid)),
+    ?assertEqual({ok, 1}, sema_nif:occupy(S)),
     ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({error, duplicate_pid}, sema_nif:occupy(S, Pid)),
-    ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
+    ?assertEqual({ok, 2}, sema_nif:occupy(S)),
+    ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S, Pid)),
+    ?assertEqual({ok, 3}, sema_nif:occupy(S)),
+    ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({error, backlog_full}, sema_nif:occupy(S)),
+    ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 0}, sema_nif:vacate(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({error, not_found}, sema_nif:vacate(S, Pid)),
-    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
-
-    ?assertEqual({ok, 1}, sema_nif:occupy(S, Pid)),
-    ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
-
-    ?assertEqual({error, duplicate_pid}, sema_nif:occupy(S, Pid)),
-    ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
-
-    ?assertEqual({ok, 0}, sema_nif:vacate(S, Pid)),
+    ?assertEqual({error, not_found}, sema_nif:vacate(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
     ?assertEqual({ok, 1}, sema_nif:occupy(S)),
@@ -55,12 +51,12 @@ test_parallel(BacklogSize, ProcessCount) ->
     Top = self(),
     F = fun() ->
         Pid = self(),
-        case sema_nif:occupy(S, Pid) of
+        case sema_nif:occupy(S) of
             {ok, N} when is_integer(N), N > 0, N =< BacklogSize ->
                 Top ! {tenant, Pid, N},
                 receive
                     leave ->
-                        {ok, Left} = sema_nif:vacate(S, Pid),
+                        {ok, Left} = sema_nif:vacate(S),
                         Top ! {left, Pid, Left}
                 end;
             {error, backlog_full} ->
@@ -122,73 +118,44 @@ atomic_ops(N) ->
 sema_race_test_() -> {timeout, 60, fun test_sema_race/0}.
 
 test_sema_race() ->
-    ?assertNotException(
-        throw,
-        {error, incomplete},
-        race_loop(4000, 1000000, fun sema_ops/1)
-    ).
+    race_loop(4_000, 1_000_000, fun sema_ops/1).
 
 sema_ops(N) ->
     S = sema_nif:create(2),
-    Pid = spawn(fun() -> sema_nif:occupy(S, self()) end),
+    {Pid, Mref} = spawn_monitor(fun() ->
+        sema_nif:occupy(S),
+        receive
+            x -> x
+        end
+    end),
     spin(N),
     exit(Pid, kill),
-    _ = sema_nif:info(S),
-    case sema_nif:occupy(S, Pid) of
-        {error, duplicate_pid} ->
-            % occupation by Pid is done in full, reduce kill delay
-            true;
+    case sema_nif:occupy(S) of
+        % early kill
         {ok, 1} ->
             % occupation by Pid is not done, increase kill delay
             false;
+        % late kill - S is fully occupied, will have to reduce delay
         {ok, 2} ->
-            % this may happen due to race, double check it after a delay
-            timer:sleep(1),
-            % receive {'DOWN', Mref, process, Pid, _Info} -> ok end,
-            case sema_nif:vacate(S, Pid) of
-                {ok, 0} ->
-                    true;
-                {ok, 1} ->
-                    % occupation was partally done, Pid was not registered!
-                    throw({error, incomplete});
-                Else ->
-                    throw({error, Else})
-            end
+            % ensure process died
+            receive
+                {'DOWN', Mref, process, Pid, _Info} -> ok
+            end,
+            % ensure nif handled monitor
+            ok = wait_dead(1_000_000, S),
+            % ensure only one unit occupied now
+            {ok, 0} = sema_nif:vacate(S),
+            true
     end.
 
-sema_gc_race_test_() -> {timeout, 60, fun test_sema_gc_race/0}.
-
-test_sema_gc_race() ->
-    race_loop(4_000, 1_000_000, fun sema_ops_gc/1).
-
-% version with automatic dead processes collection
-sema_ops_gc(N) ->
-    S = sema_nif:create(1),
-    % acquire and monitor
-    Pid = spawn(fun() -> sema_nif:occupy(S) end),
-    spin(N),
-    exit(Pid, kill),
-    wait_loop(S, 10, 100_000).
-
-wait_loop(_, _, 0) ->
-    % occupation was partally done, Pid was not registered!
-    throw({error, incomplete});
-wait_loop(_, 0, _) ->
-    % occupation by Pid is not done, increase kill delay
-    false;
-wait_loop(S, N1, N2) ->
+wait_dead(0, _) ->
+    alive;
+wait_dead(N, S) ->
     case sema_nif:info(S) of
-        #{cnt := 0, dead := 0} ->
-            % occupation by Pid is not yet done, or, it's done, but
-            % dead counter it not yet updated, try couple more times
-            wait_loop(S, N1 - 1, N2);
-        #{cnt := 0, dead := 1} ->
-            % acquire/release is done in full, reduce kill delay
-            true;
-        #{cnt := 1, dead := 0} ->
-            % occupation is partally done, Pid is not yet registered
-            % keep checking it again until success or timeout
-            wait_loop(S, N1, N2 - 1)
+        #{dead := 1} ->
+            ok;
+        _ ->
+            wait_dead(N - 1, S)
     end.
 
 race_loop(SpinCount, IterationsLeft, Fun) ->
