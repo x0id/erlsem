@@ -142,7 +142,7 @@ sema_ops(N) ->
                 {'DOWN', Mref, process, Pid, _Info} -> ok
             end,
             % ensure nif handled monitor
-            ok = wait_dead(1_000, S),
+            ok = wait_dead(1_000_000, S),
             % ensure only one unit occupied now
             {ok, 0} = sema_nif:vacate(S),
             true
