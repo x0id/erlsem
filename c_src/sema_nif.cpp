@@ -12,9 +12,7 @@ static ErlNifResourceType* SEMA;
 
 static ERL_NIF_TERM atom_ok;
 static ERL_NIF_TERM atom_error;
-static ERL_NIF_TERM atom_true;
 static ERL_NIF_TERM atom_backlog_full;
-static ERL_NIF_TERM atom_duplicate_pid;
 static ERL_NIF_TERM atom_not_found;
 static ERL_NIF_TERM atom_dead;
 static ERL_NIF_TERM atom_cnt;
@@ -237,9 +235,7 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
     if (!open_resource(env)) return -1;
     atom_ok = mk_atom(env, "ok");
     atom_error = mk_atom(env, "error");
-    atom_true = mk_atom(env, "true");
     atom_backlog_full = mk_atom(env, "backlog_full");
-    atom_duplicate_pid = mk_atom(env, "duplicate_pid");
     atom_not_found = mk_atom(env, "not_found");
     atom_dead = mk_atom(env, "dead");
     atom_cnt = mk_atom(env, "cnt");
