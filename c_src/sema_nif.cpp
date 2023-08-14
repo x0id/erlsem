@@ -155,24 +155,25 @@ struct sema {
     }
 
     // unregister presumably "live" process, optionally demonitor it
-    unsigned del_pid(ErlNifEnv *env, const ErlNifPid& pid) {
+    bool del_pid(ErlNifEnv *env, const ErlNifPid& pid) {
         // activate mutex guard
         const std::lock_guard<std::mutex> lock(pid_mutex);
 
         // check if the pid exists in our table
         auto it = pids.find(pid);
         if (it == pids.end())
-            return 0;
+            return false;
 
         // optionally demonitor the process
-        auto proc_mon = it->second.first;
-        if (enif_compare_monitors(&proc_mon, &null_mon) != 0)
-            enif_demonitor_process(env, this, &proc_mon);
+        if (--it->second.second < 1) {
+            auto proc_mon = it->second.first;
+            if (enif_compare_monitors(&proc_mon, &null_mon) != 0)
+                enif_demonitor_process(env, this, &proc_mon);
 
-        // deregister pid by removing from the pids table
-        unsigned ret = it->second.second;
-        pids.erase(it);
-        return ret;
+            // deregister pid by removing from the pids table
+            pids.erase(it);
+        }
+        return true;
     }
 
     // unregister (garbage-collect) "dead" process
@@ -189,11 +190,10 @@ struct sema {
     }
 
     ERL_NIF_TERM vacate(ErlNifEnv *env, const ErlNifPid& pid) {
-        unsigned n = del_pid(env, pid);
-        if (n > 0) {
+        if (del_pid(env, pid)) {
             // process removed from registry, decrement and return new count
             return unsigned_result(env,
-                cnt.fetch_sub(n, std::memory_order_acq_rel) - n);
+                cnt.fetch_sub(1, std::memory_order_acq_rel) - 1);
         } else {
             // process not found in the registry
             return error_tuple(env, atom_not_found);
@@ -301,7 +301,7 @@ occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
 static ERL_NIF_TERM
 vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-    if (argc != 1)
+    if (argc < 1 || argc > 2)
         return enif_make_badarg(env);
 
     sema *res = nullptr;
@@ -312,8 +312,15 @@ vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
         return enif_make_badarg(env);
 
     ErlNifPid pid = {};
-    if (nullptr == enif_self(env, &pid))
-        return enif_make_badarg(env);
+    if (argc > 1) {
+        if (!enif_is_pid(env, argv[1]))
+            return enif_make_badarg(env);
+        if (!enif_get_local_pid(env, argv[1], &pid))
+            return enif_make_badarg(env);
+    } else {
+        if (nullptr == enif_self(env, &pid))
+            return enif_make_badarg(env);
+    }
 
     return res->vacate(env, pid);
 }
@@ -322,7 +329,8 @@ static ErlNifFunc nif_funcs[] = {
     {"create", 1, create},
     {"info", 1, info},
     {"occupy", 1, occupy},
-    {"vacate", 1, vacate}
+    {"vacate", 1, vacate},
+    {"vacate", 2, vacate}
 };
 
 ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, nullptr);

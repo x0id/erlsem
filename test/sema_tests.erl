@@ -20,6 +20,21 @@ basic_api_test() ->
     ?assertEqual({error, backlog_full}, sema_nif:occupy(S)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
+    ?assertEqual({ok, 2}, sema_nif:vacate(S)),
+    ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
+
+    Pid = spawn(fun() ->
+        receive
+            stop -> ok
+        end
+    end),
+    ?assertEqual({error, not_found}, sema_nif:vacate(S, Pid)),
+    ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
+    Pid ! stop,
+
+    ?assertEqual({ok, 1}, sema_nif:vacate(S)),
+    ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
+
     ?assertEqual({ok, 0}, sema_nif:vacate(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
@@ -29,7 +44,7 @@ basic_api_test() ->
     ?assertEqual({ok, 1}, sema_nif:occupy(S)),
     ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S)),
+    ?assertEqual({ok, 0}, sema_nif:vacate(S, self())),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
     ok.

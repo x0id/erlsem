@@ -4,14 +4,16 @@
     create/1,
     info/1,
     occupy/1,
-    vacate/1
+    vacate/1,
+    vacate/2
 ]).
 
 -nifs([
     create/1,
     info/1,
     occupy/1,
-    vacate/1
+    vacate/1,
+    vacate/2
 ]).
 
 -on_load(init/0).
@@ -56,6 +58,10 @@ occupy(_) -> not_loaded(?LINE).
 % release resource unit acquired by calling process
 -spec vacate(Semaphore :: sema_ref()) -> Ret :: vacate_ret().
 vacate(_) -> not_loaded(?LINE).
+
+% release resource unit acquired by another process
+-spec vacate(Semaphore :: sema_ref(), Pid :: pid()) -> Ret :: vacate_ret().
+vacate(_, _) -> not_loaded(?LINE).
 
 % internal
 init() ->
