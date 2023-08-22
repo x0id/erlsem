@@ -16,12 +16,13 @@
     vacate/2
 ]).
 
+-export_type([sema_ref/0, occupy_ret/0, vacate_ret/0]).
+
 -on_load(init/0).
 
 -define(APPNAME, sema_nif).
 -define(LIBNAME, sema_nif).
 
--export_type([sema_ref/0]).
 -opaque sema_ref() :: reference().
 
 -spec create(Max :: pos_integer()) -> sema_ref().
@@ -66,14 +67,11 @@ vacate(_, _) -> not_loaded(?LINE).
 % internal
 init() ->
     SoName =
-        case code:priv_dir(?APPNAME) of
+        case code:priv_dir(?MODULE) of
             {error, bad_name} ->
-                case filelib:is_dir(filename:join(["..", priv])) of
-                    true ->
-                        filename:join(["..", priv, ?LIBNAME]);
-                    _ ->
-                        filename:join([priv, ?LIBNAME])
-                end;
+                EbinDir = filename:dirname(code:which(?MODULE)),
+                AppPath = filename:dirname(EbinDir),
+                filename:join([AppPath, "priv", ?LIBNAME]);
             Dir ->
                 filename:join(Dir, ?LIBNAME)
         end,
