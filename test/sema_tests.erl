@@ -47,6 +47,50 @@ basic_api_test() ->
     ?assertEqual({ok, 0}, sema_nif:vacate(S, self())),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
+    ?assertEqual({ok, 3}, sema_nif:occupy(S, 3)),
+    ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 2}, sema_nif:vacate(S, self())),
+    ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 0}, sema_nif:vacate(S, 2, self())),
+    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 3}, sema_nif:occupy(S, 3)),
+    ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 2}, sema_nif:vacate(S)),
+    ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ?assertEqual({ok, 0}, sema_nif:vacate(S, 2)),
+    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
+
+    ok.
+
+gc_test() ->
+    S = sema_nif:create(3),
+    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
+
+    Self = self(),
+    {Pid, Mref} = spawn_monitor(fun() ->
+        ?assertEqual({ok, 1}, sema_nif:occupy(S)),
+        ?assertEqual({ok, 3}, sema_nif:occupy(S, 2)),
+        Self ! ready,
+        receive
+            stop -> ok
+        end
+    end),
+    receive
+        ready -> ok
+    end,
+    ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
+
+    Pid ! stop,
+    receive
+        {'DOWN', Mref, process, Pid, _Info} -> ok
+    end,
+    ?assertEqual(#{cnt => 0, dead => 1, max => 3}, sema_nif:info(S)),
+
     ok.
 
 parallel_test() ->

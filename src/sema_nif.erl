@@ -4,16 +4,20 @@
     create/1,
     info/1,
     occupy/1,
+    occupy/2,
     vacate/1,
-    vacate/2
+    vacate/2,
+    vacate/3
 ]).
 
 -nifs([
     create/1,
     info/1,
     occupy/1,
+    occupy/2,
     vacate/1,
-    vacate/2
+    vacate/2,
+    vacate/3
 ]).
 
 -export_type([sema_ref/0, occupy_ret/0, vacate_ret/0]).
@@ -50,6 +54,10 @@ info(_) -> not_loaded(?LINE).
 -spec occupy(Semaphore :: sema_ref()) -> Ret :: occupy_ret().
 occupy(_) -> not_loaded(?LINE).
 
+% acquire resource Cnt units for calling process, monitor process
+-spec occupy(Semaphore :: sema_ref(), Cnt :: pos_integer()) -> Ret :: occupy_ret().
+occupy(_, _) -> not_loaded(?LINE).
+
 -type vacate_ret() ::
     % process freed resource unit, return number of units acquired after that
     {ok, N :: pos_integer()}
@@ -60,9 +68,13 @@ occupy(_) -> not_loaded(?LINE).
 -spec vacate(Semaphore :: sema_ref()) -> Ret :: vacate_ret().
 vacate(_) -> not_loaded(?LINE).
 
-% release resource unit acquired by another process
--spec vacate(Semaphore :: sema_ref(), Pid :: pid()) -> Ret :: vacate_ret().
+% release resource unit(s) acquired by calling/another process
+-spec vacate(Semaphore :: sema_ref(), Arg :: pos_integer() | pid()) -> Ret :: vacate_ret().
 vacate(_, _) -> not_loaded(?LINE).
+
+% release resource units acquired by another process
+-spec vacate(Semaphore :: sema_ref(), Cnt :: pos_integer(), Pid :: pid()) -> Ret :: vacate_ret().
+vacate(_, _, _) -> not_loaded(?LINE).
 
 % internal
 init() ->
