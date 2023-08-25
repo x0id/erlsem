@@ -196,12 +196,15 @@ struct sema {
     }
 
     ERL_NIF_TERM vacate(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
+        // decrement counter right away
+        auto ret = unsigned_result(env,
+            cnt.fetch_sub(n, std::memory_order_acq_rel) - n);
         if (del_pid(env, pid, n)) {
-            // process found, decrement and return new count
-            return unsigned_result(env,
-                cnt.fetch_sub(n, std::memory_order_acq_rel) - n);
+            // process found, return new count
+            return ret;
         } else {
-            // process not found in the registry
+            // process not found in the registry, increment counter back
+            cnt.fetch_add(n, std::memory_order_acq_rel);
             return error_tuple(env, atom_not_found);
         }
     }
