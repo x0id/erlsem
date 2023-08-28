@@ -100,9 +100,9 @@ struct sema {
     }
 
     ERL_NIF_TERM try_to_take(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
-        unsigned x;
-        while ((x = cnt.load(std::memory_order_acquire)) + n <= max) {
-            if (cnt.compare_exchange_strong(
+        unsigned x = cnt.load(std::memory_order_relaxed);
+        while (x + n <= max) {
+            if (cnt.compare_exchange_weak(
                 x,
                 x + n,
                 std::memory_order_release,
