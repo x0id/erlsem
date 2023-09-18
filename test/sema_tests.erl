@@ -17,7 +17,7 @@ basic_api_test() ->
     ?assertEqual({ok, 3}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({error, backlog_full}, sema_nif:acquire(S)),
+    ?assertEqual({error, full}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
     ?assertEqual({ok, 2}, sema_nif:release(S)),
@@ -118,7 +118,7 @@ test_parallel(BacklogSize, ProcessCount) ->
                         {ok, Left} = sema_nif:release(S),
                         Top ! {left, Pid, Left}
                 end;
-            {error, backlog_full} ->
+            {error, full} ->
                 Top ! {no_luck, Pid}
         end
     end,

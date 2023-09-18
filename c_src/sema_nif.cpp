@@ -12,7 +12,7 @@ static ErlNifResourceType* SEMA;
 
 static ERL_NIF_TERM atom_ok;
 static ERL_NIF_TERM atom_error;
-static ERL_NIF_TERM atom_backlog_full;
+static ERL_NIF_TERM atom_full;
 static ERL_NIF_TERM atom_not_found;
 static ERL_NIF_TERM atom_dead;
 static ERL_NIF_TERM atom_cnt;
@@ -121,7 +121,7 @@ struct sema {
             }
         }
         // max reached
-        return error_tuple(env, atom_backlog_full);
+        return error_tuple(env, atom_full);
     }
 
     bool maybe_monitor(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
@@ -241,7 +241,7 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
     if (!open_resource(env)) return -1;
     atom_ok = mk_atom(env, "ok");
     atom_error = mk_atom(env, "error");
-    atom_backlog_full = mk_atom(env, "backlog_full");
+    atom_full = mk_atom(env, "full");
     atom_not_found = mk_atom(env, "not_found");
     atom_dead = mk_atom(env, "dead");
     atom_cnt = mk_atom(env, "cnt");
