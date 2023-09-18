@@ -12,7 +12,7 @@ basic_swarm() ->
     Self = self(),
     Pids = [
         spawn(fun() ->
-            ?assertMatch({ok, _}, sema_nif:occupy(S)),
+            ?assertMatch({ok, _}, sema_nif:acquire(S)),
             Self ! {pass, self(), S},
             receive
                 stop -> ok
@@ -33,7 +33,7 @@ loop([Pid | T]) ->
         {pass, Pid, S} ->
             spawn(fun() ->
                 timer:sleep(1),
-                ?assertMatch({ok, _}, sema_nif:vacate(S, Pid)),
+                ?assertMatch({ok, _}, sema_nif:release(S, Pid)),
                 Pid ! stop
             end),
             loop(T)
@@ -156,11 +156,11 @@ worker(ets, Max, _, ProcF, ReportF) ->
     end.
 
 nif_worker(S, ProcF, ReportF, N) ->
-    case sema_nif:occupy(S) of
+    case sema_nif:acquire(S) of
         {ok, _} ->
             ReportF(ok),
             Pid = self(),
-            ProcF(fun() -> sema_nif:vacate(S, Pid) end);
+            ProcF(fun() -> sema_nif:release(S, Pid) end);
         {error, backlog_full} when N > 1 ->
             erlang:yield(),
             nif_worker(S, ProcF, ReportF, N - 1);

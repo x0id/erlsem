@@ -8,19 +8,19 @@ basic_api_test() ->
     S = sema_nif:create(3),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 1}, sema_nif:occupy(S)),
+    ?assertEqual({ok, 1}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 2}, sema_nif:occupy(S)),
+    ?assertEqual({ok, 2}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 3}, sema_nif:occupy(S)),
+    ?assertEqual({ok, 3}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({error, backlog_full}, sema_nif:occupy(S)),
+    ?assertEqual({error, backlog_full}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 2}, sema_nif:vacate(S)),
+    ?assertEqual({ok, 2}, sema_nif:release(S)),
     ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
 
     Pid = spawn(fun() ->
@@ -28,41 +28,41 @@ basic_api_test() ->
             stop -> ok
         end
     end),
-    ?assertEqual({error, not_found}, sema_nif:vacate(S, Pid)),
+    ?assertEqual({error, not_found}, sema_nif:release(S, Pid)),
     ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
     Pid ! stop,
 
-    ?assertEqual({ok, 1}, sema_nif:vacate(S)),
+    ?assertEqual({ok, 1}, sema_nif:release(S)),
     ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S)),
+    ?assertEqual({ok, 0}, sema_nif:release(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({error, not_found}, sema_nif:vacate(S)),
+    ?assertEqual({error, not_found}, sema_nif:release(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 1}, sema_nif:occupy(S)),
+    ?assertEqual({ok, 1}, sema_nif:acquire(S)),
     ?assertEqual(#{cnt => 1, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S, self())),
+    ?assertEqual({ok, 0}, sema_nif:release(S, self())),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 3}, sema_nif:occupy(S, 3)),
+    ?assertEqual({ok, 3}, sema_nif:acquire(S, 3)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 2}, sema_nif:vacate(S, self())),
+    ?assertEqual({ok, 2}, sema_nif:release(S, self())),
     ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S, 2, self())),
+    ?assertEqual({ok, 0}, sema_nif:release(S, 2, self())),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 3}, sema_nif:occupy(S, 3)),
+    ?assertEqual({ok, 3}, sema_nif:acquire(S, 3)),
     ?assertEqual(#{cnt => 3, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 2}, sema_nif:vacate(S)),
+    ?assertEqual({ok, 2}, sema_nif:release(S)),
     ?assertEqual(#{cnt => 2, dead => 0, max => 3}, sema_nif:info(S)),
 
-    ?assertEqual({ok, 0}, sema_nif:vacate(S, 2)),
+    ?assertEqual({ok, 0}, sema_nif:release(S, 2)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
     ok.
@@ -73,8 +73,8 @@ gc_test() ->
 
     Self = self(),
     {Pid, Mref} = spawn_monitor(fun() ->
-        ?assertEqual({ok, 1}, sema_nif:occupy(S)),
-        ?assertEqual({ok, 3}, sema_nif:occupy(S, 2)),
+        ?assertEqual({ok, 1}, sema_nif:acquire(S)),
+        ?assertEqual({ok, 3}, sema_nif:acquire(S, 2)),
         Self ! ready,
         receive
             stop -> ok
@@ -110,12 +110,12 @@ test_parallel(BacklogSize, ProcessCount) ->
     Top = self(),
     F = fun() ->
         Pid = self(),
-        case sema_nif:occupy(S) of
+        case sema_nif:acquire(S) of
             {ok, N} when is_integer(N), N > 0, N =< BacklogSize ->
                 Top ! {tenant, Pid, N},
                 receive
                     leave ->
-                        {ok, Left} = sema_nif:vacate(S),
+                        {ok, Left} = sema_nif:release(S),
                         Top ! {left, Pid, Left}
                 end;
             {error, backlog_full} ->
@@ -182,14 +182,14 @@ test_sema_race() ->
 sema_ops(N) ->
     S = sema_nif:create(2),
     {Pid, Mref} = spawn_monitor(fun() ->
-        sema_nif:occupy(S),
+        sema_nif:acquire(S),
         receive
             x -> x
         end
     end),
     spin(N),
     exit(Pid, kill),
-    case sema_nif:occupy(S) of
+    case sema_nif:acquire(S) of
         % early kill
         {ok, 1} ->
             % occupation by Pid is not done, increase kill delay
@@ -203,7 +203,7 @@ sema_ops(N) ->
             % ensure nif handled monitor
             ok = wait_dead(1_000_000, S),
             % ensure only one unit occupied now
-            {ok, 0} = sema_nif:vacate(S),
+            {ok, 0} = sema_nif:release(S),
             true
     end.
 
