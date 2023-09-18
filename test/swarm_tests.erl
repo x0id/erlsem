@@ -161,10 +161,10 @@ nif_worker(S, ProcF, ReportF, N) ->
             ReportF(ok),
             Pid = self(),
             ProcF(fun() -> sema_nif:release(S, Pid) end);
-        {error, backlog_full} when N > 1 ->
+        {error, full} when N > 1 ->
             erlang:yield(),
             nif_worker(S, ProcF, ReportF, N - 1);
-        {error, backlog_full} ->
+        {error, full} ->
             ReportF(error)
     end.
 

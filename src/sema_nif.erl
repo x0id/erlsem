@@ -48,7 +48,7 @@ info(_) -> not_loaded(?LINE).
     % process got resource unit, return number of units acquired so far
     {ok, N :: pos_integer()}
     % no resource units available
-    | {error, backlog_full}.
+    | {error, full}.
 
 % acquire resource unit for calling process, monitor process
 -spec acquire(Semaphore :: sema_ref()) -> Ret :: acquire_ret().
