@@ -195,7 +195,7 @@ struct sema {
         pids.erase(pid);
     }
 
-    ERL_NIF_TERM vacate(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
+    ERL_NIF_TERM release(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
         if (del_pid(env, pid, n)) {
             // process found, decrement and return new count
             return unsigned_result(env,
@@ -286,7 +286,7 @@ info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ERL_NIF_TERM
-occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+acquire(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc < 1 || argc > 2)
         return enif_make_badarg(env);
 
@@ -316,7 +316,7 @@ occupy(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ERL_NIF_TERM
-vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+release(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     if (argc < 1 || argc > 3)
         return enif_make_badarg(env);
 
@@ -353,17 +353,17 @@ vacate(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
             return enif_make_badarg(env);
     }
 
-    return res->vacate(env, pid, n);
+    return res->release(env, pid, n);
 }
 
 static ErlNifFunc nif_funcs[] = {
     {"create", 1, create},
     {"info", 1, info},
-    {"occupy", 1, occupy},
-    {"occupy", 2, occupy},
-    {"vacate", 1, vacate},
-    {"vacate", 2, vacate},
-    {"vacate", 3, vacate}
+    {"acquire", 1, acquire},
+    {"acquire", 2, acquire},
+    {"release", 1, release},
+    {"release", 2, release},
+    {"release", 3, release}
 };
 
 ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, nullptr);
