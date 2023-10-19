@@ -20,14 +20,26 @@
     release/3
 ]).
 
--export_type([sema_ref/0, acquire_ret/0, release_ret/0]).
-
 -on_load(init/0).
 
 -define(APPNAME, sema_nif).
 -define(LIBNAME, sema_nif).
 
--opaque sema_ref() :: reference().
+-type acquire_ret() ::
+    % process got resource unit, return number of units acquired so far
+    {ok, N :: pos_integer()}
+    % no resource units available
+    | {error, full}.
+
+-type release_ret() ::
+    % process freed resource unit, return number of units acquired after that
+    {ok, N :: pos_integer()}
+    % no process that holds resource found
+    | {error, not_found}.
+
+-type sema_ref() :: reference().
+
+-export_type([sema_ref/0, acquire_ret/0, release_ret/0]).
 
 -spec create(Max :: pos_integer()) -> sema_ref().
 create(_) -> not_loaded(?LINE).
@@ -44,12 +56,6 @@ create(_) -> not_loaded(?LINE).
     }.
 info(_) -> not_loaded(?LINE).
 
--type acquire_ret() ::
-    % process got resource unit, return number of units acquired so far
-    {ok, N :: pos_integer()}
-    % no resource units available
-    | {error, full}.
-
 % acquire resource unit for calling process, monitor process
 -spec acquire(Semaphore :: sema_ref()) -> Ret :: acquire_ret().
 acquire(_) -> not_loaded(?LINE).
@@ -57,12 +63,6 @@ acquire(_) -> not_loaded(?LINE).
 % acquire resource Cnt units for calling process, monitor process
 -spec acquire(Semaphore :: sema_ref(), Cnt :: pos_integer()) -> Ret :: acquire_ret().
 acquire(_, _) -> not_loaded(?LINE).
-
--type release_ret() ::
-    % process freed resource unit, return number of units acquired after that
-    {ok, N :: pos_integer()}
-    % no process that holds resource found
-    | {error, not_found}.
 
 % release resource unit acquired by calling process
 -spec release(Semaphore :: sema_ref()) -> Ret :: release_ret().
