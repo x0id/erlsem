@@ -65,9 +65,9 @@ info(_) -> not_loaded(?LINE).
 -spec capacity(Semaphore :: sema_ref()) -> pos_integer().
 capacity(_) -> not_loaded(?LINE).
 
-% @doc Set semaphore maximum capacity. 
+% @doc Set semaphore maximum capacity.
 % Return old capacity.
--spec capacity(Semaphore :: sema_ref(), Max::integer()) -> pos_integer().
+-spec capacity(Semaphore :: sema_ref(), Max :: integer()) -> pos_integer().
 capacity(_, _Max) -> not_loaded(?LINE).
 
 % @doc Acquire resource unit for calling process, monitor process
