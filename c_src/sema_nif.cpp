@@ -86,6 +86,11 @@ struct sema {
 
     sema(unsigned n) : cnt(0), dead_counter(0), max(n) {}
 
+    ERL_NIF_TERM set_capacity(unsigned n) {
+        max = n;
+        return atom_ok;
+    }
+
     ERL_NIF_TERM info(ErlNifEnv *env) {
         ERL_NIF_TERM keys[] = {atom_dead, atom_cnt, atom_max};
         ERL_NIF_TERM vals[] = {
@@ -356,6 +361,27 @@ release(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     return res->release(env, pid, n);
 }
 
+static ERL_NIF_TERM
+set_capacity(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    if (argc != 2)
+        return enif_make_badarg(env);
+
+    sema *res = nullptr;
+    if (!enif_get_resource(env, argv[0], SEMA, (void **)&res))
+        return enif_make_badarg(env);
+
+    if (res == nullptr)
+        return enif_make_badarg(env);
+
+    unsigned n = 1;
+    if (enif_is_number(env, argv[1]))
+        enif_get_uint(env, argv[1], &n);
+    else
+        return enif_make_badarg(env);
+
+    return n > 0 ? res->set_capacity(n) : enif_make_badarg(env);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"create", 1, create},
     {"info", 1, info},
@@ -363,7 +389,9 @@ static ErlNifFunc nif_funcs[] = {
     {"acquire", 2, acquire},
     {"release", 1, release},
     {"release", 2, release},
-    {"release", 3, release}
+    {"release", 3, release},
+    {"release", 3, release},
+    {"set_capacity", 2, set_capacity}
 };
 
 ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, nullptr);

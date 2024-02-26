@@ -7,7 +7,8 @@
     acquire/2,
     release/1,
     release/2,
-    release/3
+    release/3,
+    set_capacity/2
 ]).
 
 -nifs([
@@ -17,7 +18,8 @@
     acquire/2,
     release/1,
     release/2,
-    release/3
+    release/3,
+    set_capacity/2
 ]).
 
 -on_load(init/0).
@@ -75,6 +77,10 @@ release(_, _) -> not_loaded(?LINE).
 % release resource units acquired by another process
 -spec release(Semaphore :: sema_ref(), Cnt :: pos_integer(), Pid :: pid()) -> Ret :: release_ret().
 release(_, _, _) -> not_loaded(?LINE).
+
+% set (update) semaphore capacity
+-spec set_capacity(Semaphore :: sema_ref(), Cnt :: pos_integer()) -> ok.
+set_capacity(_, _) -> not_loaded(?LINE).
 
 % internal
 init() ->
