@@ -6,6 +6,7 @@ basic_api_test() ->
     ?assertError(badarg, sema_nif:create(-1)),
 
     S = sema_nif:create(3),
+    ?assertEqual(3, sema_nif:capacity(S)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
     ?assertEqual({ok, 1}, sema_nif:acquire(S)),
@@ -65,6 +66,8 @@ basic_api_test() ->
     ?assertEqual({ok, 0}, sema_nif:release(S, 2)),
     ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(S)),
 
+    ?assertEqual(3, sema_nif:capacity(S, 5)),
+    ?assertEqual(5, sema_nif:capacity(S)),
     ok.
 
 gc_test() ->

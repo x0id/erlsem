@@ -3,6 +3,7 @@
 #include <atomic>
 #include <mutex>
 #include <map>
+#include <cassert>
 
 #ifdef TRACE
 #include <iostream>
@@ -98,6 +99,9 @@ struct sema {
         enif_make_map_from_arrays(env, keys, vals, n, &map_ret);
         return map_ret;
     }
+
+    unsigned capacity() const     { return max; }
+    unsigned capacity(unsigned n) { auto old=max; max=n; return old; }
 
     ERL_NIF_TERM try_to_take(ErlNifEnv *env, const ErlNifPid& pid, unsigned n) {
         unsigned x = cnt.load(std::memory_order_relaxed);
@@ -272,8 +276,7 @@ create(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 
 static ERL_NIF_TERM
 info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-    if (argc != 1)
-        return enif_make_badarg(env);
+    assert(argc == 1);
 
     sema *res = nullptr;
     if (!enif_get_resource(env, argv[0], SEMA, (void **)&res))
@@ -283,6 +286,21 @@ info(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
         return enif_make_badarg(env);
 
     return res->info(env);
+}
+
+static ERL_NIF_TERM
+capacity(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
+    assert(argc >= 1 && argc <= 2);
+
+    sema *res = nullptr;
+    if (!enif_get_resource(env, argv[0], SEMA, (void **)&res) || !res)
+        return enif_make_badarg(env);
+
+    unsigned max = 0;
+    if (argc == 2 && !enif_get_uint(env, argv[1], &max))
+        return enif_make_badarg(env);
+        
+    return enif_make_uint(env, argc == 2 ? res->capacity(max) : res->capacity());
 }
 
 static ERL_NIF_TERM
@@ -357,13 +375,15 @@ release(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"create", 1, create},
-    {"info", 1, info},
-    {"acquire", 1, acquire},
-    {"acquire", 2, acquire},
-    {"release", 1, release},
-    {"release", 2, release},
-    {"release", 3, release}
+    {"create",   1, create},
+    {"info",     1, info},
+    {"capacity", 1, capacity},
+    {"capacity", 2, capacity},
+    {"acquire",  1, acquire},
+    {"acquire",  2, acquire},
+    {"release",  1, release},
+    {"release",  2, release},
+    {"release",  3, release}
 };
 
 ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, nullptr);
