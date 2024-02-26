@@ -390,7 +390,6 @@ static ErlNifFunc nif_funcs[] = {
     {"release", 1, release},
     {"release", 2, release},
     {"release", 3, release},
-    {"release", 3, release},
     {"set_capacity", 2, set_capacity}
 };
 
