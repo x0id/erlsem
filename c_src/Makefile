@@ -12,25 +12,28 @@ ERL_INTERFACE_LIB_DIR ?= $(shell erl -noshell -eval "io:format(\"~ts\", [code:li
 C_SRC_DIR = $(CURDIR)
 C_SRC_OUTPUT ?= $(CURDIR)/../priv/$(PROJECT).so
 
+ifeq ($(NIF_DEBUG),)
+	OPTIMIZE = -O3 -DNDEBUG
+else
+	OPTIMIZE = -g -O0
+endif
+
 # System type and C compiler/flags.
 
 UNAME_SYS := $(shell uname -s)
-ifeq ($(UNAME_SYS), Darwin)
+ifeq ($(UNAME_SYS),Darwin)
 	CC ?= cc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS ?= -finline-functions -Wall
 	LDFLAGS ?= -flat_namespace -undefined suppress
-else ifeq ($(UNAME_SYS), FreeBSD)
+else ifeq ($(UNAME_SYS),FreeBSD)
 	CC ?= cc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O3 -finline-functions -Wall
-else ifeq ($(UNAME_SYS), Linux)
+	CXXFLAGS ?= -finline-functions -Wall
+else ifeq ($(UNAME_SYS),Linux)
 	CC ?= gcc
-	CFLAGS ?= -O3 -std=c99 -finline-functions -Wall -Wmissing-prototypes
-	CXXFLAGS ?= -O3 -finline-functions -Wall
+	CXXFLAGS ?= -finline-functions -Wall
 endif
 
-CXXFLAGS += -std=c++11
+CXXFLAGS += -std=c++20 $(OPTIMIZE)
 
 CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR)
 CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR)

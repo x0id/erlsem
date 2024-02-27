@@ -2,6 +2,7 @@
 
 -export([
     create/1,
+    create/2,
     info/1,
     capacity/1,
     capacity/2,
@@ -14,6 +15,7 @@
 
 -nifs([
     create/1,
+    create/2,
     info/1,
     capacity/1,
     capacity/2,
@@ -42,15 +44,22 @@
     | {error, not_found}.
 
 -type sema_ref() :: reference().
+-type sema_id() :: sema_ref() | atom().
 
--export_type([sema_ref/0, acquire_ret/0, release_ret/0]).
+-type sema_name() :: atom().
+
+-export_type([sema_ref/0, sema_id/0, acquire_ret/0, release_ret/0]).
 
 % @doc Create a new semaphore with the given capacity
 -spec create(Max :: pos_integer()) -> sema_ref().
 create(_) -> not_loaded(?LINE).
 
+% @doc Create a named semaphore with the given capacity
+-spec create(sema_name(), pos_integer()) -> sema_ref().
+create(Name, Max) when is_atom(Name), is_integer(Max) -> not_loaded(?LINE).
+
 % @doc Get internal properties of the semaphore resource
--spec info(Semaphore :: sema_ref()) ->
+-spec info(Semaphore :: sema_id()) ->
     #{
         % number of units acquired
         cnt := non_neg_integer(),
@@ -62,32 +71,32 @@ create(_) -> not_loaded(?LINE).
 info(_) -> not_loaded(?LINE).
 
 % @doc Get semaphore maximum capacity
--spec capacity(Semaphore :: sema_ref()) -> pos_integer().
+-spec capacity(Semaphore :: sema_id()) -> pos_integer().
 capacity(_) -> not_loaded(?LINE).
 
 % @doc Set semaphore maximum capacity.
 % Return old capacity.
--spec capacity(Semaphore :: sema_ref(), Max :: integer()) -> pos_integer().
+-spec capacity(Semaphore :: sema_id(), Max :: integer()) -> pos_integer().
 capacity(_, _Max) -> not_loaded(?LINE).
 
 % @doc Acquire resource unit for calling process, monitor process
--spec acquire(Semaphore :: sema_ref()) -> Ret :: acquire_ret().
+-spec acquire(Semaphore :: sema_id()) -> Ret :: acquire_ret().
 acquire(_) -> not_loaded(?LINE).
 
 % @doc Acquire resource Cnt units for calling process, monitor process
--spec acquire(Semaphore :: sema_ref(), Cnt :: pos_integer()) -> Ret :: acquire_ret().
+-spec acquire(Semaphore :: sema_id(), Cnt :: pos_integer()) -> Ret :: acquire_ret().
 acquire(_, _) -> not_loaded(?LINE).
 
 % @doc Release resource unit acquired by calling process
--spec release(Semaphore :: sema_ref()) -> Ret :: release_ret().
+-spec release(Semaphore :: sema_id()) -> Ret :: release_ret().
 release(_) -> not_loaded(?LINE).
 
 % @doc Release resource unit(s) acquired by calling/another process
--spec release(Semaphore :: sema_ref(), Arg :: pos_integer() | pid()) -> Ret :: release_ret().
+-spec release(Semaphore :: sema_id(), Arg :: pos_integer() | pid()) -> Ret :: release_ret().
 release(_, _) -> not_loaded(?LINE).
 
 % @doc Release resource units acquired by another process
--spec release(Semaphore :: sema_ref(), Cnt :: pos_integer(), Pid :: pid()) -> Ret :: release_ret().
+-spec release(Semaphore :: sema_id(), Cnt :: pos_integer(), Pid :: pid()) -> Ret :: release_ret().
 release(_, _, _) -> not_loaded(?LINE).
 
 % internal
