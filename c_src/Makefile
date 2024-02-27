@@ -30,7 +30,7 @@ else ifeq ($(UNAME_SYS), Linux)
 	CXXFLAGS ?= -O3 -finline-functions -Wall
 endif
 
-CXXFLAGS += -std=c++11
+CXXFLAGS += -std=c++20
 
 CFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR)
 CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR)

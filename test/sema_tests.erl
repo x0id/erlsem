@@ -68,7 +68,19 @@ basic_api_test() ->
 
     ?assertEqual(3, sema_nif:capacity(S, 5)),
     ?assertEqual(5, sema_nif:capacity(S)),
+
     ok.
+
+sema_name_test() ->
+    S = sema_nif:create(3, #{name => sema_test}),
+    ?assert(is_reference(S)),
+    ?assertEqual(3, sema_nif:capacity(sema_test)),
+    ?assertEqual(3, sema_nif:capacity(S)),
+    ?assertEqual({ok, 1}, sema_nif:acquire(sema_test)),
+    ?assertEqual({ok, 0}, sema_nif:release(sema_test)),
+    ?assertEqual(#{cnt => 0, dead => 0, max => 3}, sema_nif:info(sema_test)),
+    ?assertEqual(3, sema_nif:capacity(sema_test, 5)),
+    ?assertEqual(5, sema_nif:capacity(sema_test)).
 
 gc_test() ->
     S = sema_nif:create(3),
