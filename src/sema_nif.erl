@@ -46,21 +46,17 @@
 -type sema_ref() :: reference().
 -type sema_id() :: sema_ref() | atom().
 
--type sema_opts() :: #{name => atom()}.
+-type sema_name() :: atom().
 
--export_type([sema_ref/0, sema_id/0, sema_opts/0, acquire_ret/0, release_ret/0]).
+-export_type([sema_ref/0, sema_id/0, acquire_ret/0, release_ret/0]).
 
 % @doc Create a new semaphore with the given capacity
 -spec create(Max :: pos_integer()) -> sema_ref().
 create(_) -> not_loaded(?LINE).
 
-% @doc Create a new semaphore with the given capacity
-% `Opts' is a map of options:
-% <ul>
-% <li>`{name, Name::atom()}' semaphore name
-% </ul>
--spec create(pos_integer(), sema_opts()) -> sema_ref().
-create(Max, Opts) when is_integer(Max), is_map(Opts) -> not_loaded(?LINE).
+% @doc Create a named semaphore with the given capacity
+-spec create(sema_name(), pos_integer()) -> sema_ref().
+create(Name, Max) when is_atom(Name), is_integer(Max) -> not_loaded(?LINE).
 
 % @doc Get internal properties of the semaphore resource
 -spec info(Semaphore :: sema_id()) ->

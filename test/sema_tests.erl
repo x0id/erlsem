@@ -72,7 +72,7 @@ basic_api_test() ->
     ok.
 
 sema_name_test() ->
-    S = sema_nif:create(3, #{name => sema_test}),
+    S = sema_nif:create(sema_test, 3),
     ?assert(is_reference(S)),
     ?assertEqual(3, sema_nif:capacity(sema_test)),
     ?assertEqual(3, sema_nif:capacity(S)),

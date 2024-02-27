@@ -23,6 +23,7 @@ static ERL_NIF_TERM atom_cnt;
 static ERL_NIF_TERM atom_max;
 static ERL_NIF_TERM atom_name;
 static ERL_NIF_TERM atom_undefined;
+static ERL_NIF_TERM atom_duplicate_name;
 
 inline ERL_NIF_TERM mk_atom(ErlNifEnv *env, const char *name) {
     ERL_NIF_TERM ret;
@@ -88,7 +89,7 @@ struct enif_allocator : std::allocator<T> {
 struct sema;
 
 struct registry {
-    void add(ERL_NIF_TERM name, sema* s);
+    bool add(ERL_NIF_TERM name, sema* s);
     void remove(sema* s);
     sema* get(ERL_NIF_TERM name);
 private:
@@ -96,13 +97,16 @@ private:
     std::mutex                    m_mtx;
 };
 
-static std::unique_ptr<registry> s_registry;
+
+static registry* get_registry(ErlNifEnv* env) {
+    return static_cast<registry*>(enif_priv_data(env));
+}
 
 struct sema {
     std::atomic_uint cnt;
     std::atomic_uint dead_counter;
-    unsigned max;
-    ERL_NIF_TERM name;
+    unsigned         max;
+    ERL_NIF_TERM     name;
 
     typedef std::pair<ErlNifMonitor, unsigned> mon_cnt_t;
     std::map<
@@ -115,18 +119,12 @@ struct sema {
 
     static ErlNifMonitor null_mon;
 
-    sema(unsigned n, ERL_NIF_TERM name = 0)
+    sema(ErlNifEnv* env, unsigned n, ERL_NIF_TERM name = 0)
         : cnt(0)
         , dead_counter(0)
         , max(n)
         , name(name ? name : atom_undefined)
-    {
-        s_registry->add(name, this);
-    }
-
-    ~sema() {
-        s_registry->remove(this);
-    }
+    {}
 
     ERL_NIF_TERM info(ErlNifEnv *env) {
         ERL_NIF_TERM keys[] = {atom_dead, atom_cnt, atom_max};
@@ -254,13 +252,19 @@ struct sema {
 
 ErlNifMonitor sema::null_mon;
 
+class sema_already_registered : public std::exception {};
+
 //-----------------------------------------------------------------------------
 // registry implementation
 //-----------------------------------------------------------------------------
-void registry::add(ERL_NIF_TERM name, sema* s) {
-    if (name == 0 || name == atom_undefined) return;
+bool registry::add(ERL_NIF_TERM name, sema* s) {
+    if (name == 0 || name == atom_undefined) return false;
     std::unique_lock lock(m_mtx);
+    auto it = m_reg.find(name);
+    if (it != m_reg.end())
+        return false;
     m_reg.emplace(std::make_pair(name, s));
+    return true;
 }
 void registry::remove(sema* s) {
     if (!s) return;
@@ -283,6 +287,10 @@ static void free_sema(ErlNifEnv *env, void *obj) {
         auto n = x.cnt.load(std::memory_order_acquire);
         std::cout << "free> cnt: " << n << ", max: " << x.max << "\r\n";
 #endif
+        auto reg = get_registry(env);
+        assert(reg);
+        reg->remove(&x);
+
         x.~sema();
     }
 }
@@ -307,59 +315,52 @@ static bool open_resource(ErlNifEnv *env) {
 //-----------------------------------------------------------------------------
 // NIF implementation
 //-----------------------------------------------------------------------------
-static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
-    if (!open_resource(env)) return -1;
-    atom_ok = mk_atom(env, "ok");
-    atom_error = mk_atom(env, "error");
-    atom_full = mk_atom(env, "full");
-    atom_not_found = mk_atom(env, "not_found");
-    atom_dead = mk_atom(env, "dead");
-    atom_cnt = mk_atom(env, "cnt");
-    atom_max = mk_atom(env, "max");
-    atom_name = mk_atom(env, "name");
-    atom_undefined = mk_atom(env, "undefined");
-    
-    s_registry.reset(new registry());
-
-    return 0;
-}
 
 static ERL_NIF_TERM
 create(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     assert(argc >= 1 && argc <= 2);
 
+    int pos = argc == 1 ? 0 : 1;
     unsigned max;
-    if (!enif_get_uint(env, argv[0], &max))
+    if (!enif_get_uint(env, argv[pos], &max))
         return enif_make_badarg(env);
 
     ERL_NIF_TERM name = 0;
 
     if (argc > 1) {
-        if (!enif_is_map(env, argv[1]))
+        if (!enif_is_atom(env, argv[0]))
             return enif_make_badarg(env);
-
-        if (!enif_get_map_value(env, argv[1], atom_name, &name))
-            return enif_raise_exception(env,
-                enif_make_tuple2(env, atom_error, make_binary(env, "Missing option: name")));
+        name = argv[0];
     }
 
-    void *res = enif_alloc_resource(SEMA, sizeof(sema));
+    sema *res = static_cast<sema*>(enif_alloc_resource(SEMA, sizeof(sema)));
     if (res == nullptr)
         return enif_make_badarg(env);
 
-    ERL_NIF_TERM ret = enif_make_resource(env, res);
-    enif_release_resource(res);
+    ERL_NIF_TERM ret;
 
-    new (res) sema(max, name);
+    auto reg = get_registry(env);
+    assert(reg);
+    if (name && name != atom_undefined && !reg->add(name, res))
+        ret = enif_raise_exception(env, atom_duplicate_name);        
+    else {
+        new (res) sema(env, max, name);
+        ret = enif_make_resource(env, res);
+    }
+
+    enif_release_resource(res);
 
     return ret;
 }
 
 static sema*
 get_sema(ErlNifEnv *env, ERL_NIF_TERM id) {
-    if (enif_is_atom(env, id))
-        return s_registry->get(id);
-    
+    if (enif_is_atom(env, id)) {
+        auto reg = get_registry(env);
+        assert(reg);
+        return reg->get(id);
+    }
+
     sema *res = nullptr;
     return enif_get_resource(env, id, SEMA, (void **)&res) ? res : nullptr;
 }
@@ -455,6 +456,32 @@ release(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
     return res->release(env, pid, n);
 }
 
+//-----------------------------------------------------------------------------
+// NIF loading/unloading
+//-----------------------------------------------------------------------------
+static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
+    if (!open_resource(env)) return -1;
+    atom_ok = mk_atom(env, "ok");
+    atom_error = mk_atom(env, "error");
+    atom_full = mk_atom(env, "full");
+    atom_not_found = mk_atom(env, "not_found");
+    atom_dead = mk_atom(env, "dead");
+    atom_cnt = mk_atom(env, "cnt");
+    atom_max = mk_atom(env, "max");
+    atom_name = mk_atom(env, "name");
+    atom_undefined = mk_atom(env, "undefined");
+    atom_duplicate_name = mk_atom(env, "duplicate_name");
+    
+    *priv_data = static_cast<void*>(new registry());
+
+    return 0;
+}
+
+static void unload(ErlNifEnv *env, void *priv_data) {
+  if (priv_data)
+    delete static_cast<registry*>(priv_data);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"create",   1, create},
     {"create",   2, create},
@@ -468,4 +495,4 @@ static ErlNifFunc nif_funcs[] = {
     {"release",  3, release}
 };
 
-ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, nullptr);
+ERL_NIF_INIT(sema_nif, nif_funcs, &load, nullptr, nullptr, unload);
